@@ -1,3 +1,5 @@
 # python_study
-python从入门到实践学习
-0228 study 178
+* PDF资料 https://github.com/sunjbb/python_study.git 
+* python从入门到实践学习
+* 0228 study 178
+
