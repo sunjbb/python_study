@@ -18,4 +18,4 @@ print(f"new position {alien_0['x_position']}")
 # 删除键值对
 del alien_0["color"]
 # get 方式获取值，第一个是key 第二个参数是失败的提示
-print(alien_0.get("x_position",'placeholder'))
+print(alien_0.get("x_position3",'placeholder'))
