@@ -1,10 +1,14 @@
 import sys
 import pygame
+
+from time import sleep
 from random import randint
 from settings import Settings
 from ship import Ship
 from bullet import Bullet
 from alien import Alien
+from game_stats import GameStats
+from button import Button
 
 class AlienInvasion:
     """管理游戏资源和行为的类"""
@@ -15,9 +19,11 @@ class AlienInvasion:
         self.settings = Settings()
         self.screen = pygame.display.set_mode((self.settings.screen_width,self.settings.screen_height))
         self.ship = Ship(self)
+        self.game_stats = GameStats(self)
         self.bullets = pygame.sprite.Group()
         self.aliens = pygame.sprite.Group()
         self._create_fleet()
+        self.play_button = Button(self,'Play')
         pygame.display.set_caption("Alien Invasion")
 
         """设置背景颜色"""
@@ -29,11 +35,15 @@ class AlienInvasion:
         while True:    
             """监听鼠标键盘事件"""
             self._check_events()
-            """判断是否移动飞船"""
-            self.ship.update()
-            """渲染子弹"""
-            self._update_bullets()
-            """修改屏幕信息，如内容和背景"""
+            if self.game_stats.game_active:
+                """判断是否移动飞船"""
+                self.ship.update()
+                """渲染子弹"""
+                self._update_bullets()
+                # 移动外星人
+                self._update_aliens()
+
+            # """修改屏幕信息，如内容和背景"""
             self._update_screen()
 
     """监听鼠标键盘事件"""
@@ -84,6 +94,8 @@ class AlienInvasion:
             bullet.draw_bullet()
         """渲染外星人"""
         self.aliens.draw(self.screen)
+        if not self.game_stats.game_active:
+            self.play_button.draw_button()
 
         pygame.display.flip()
 
@@ -100,31 +112,94 @@ class AlienInvasion:
             # print(bullet.rect.bottom)
             if bullet.rect.bottom <= 0:
                 self.bullets.remove(bullet)
-    """创建外星人"""
+
+        self._check_bullet_alien_collisions()
+
+
+    def _check_bullet_alien_collisions(self):
+                # 检查两个集合中是否有重复 有就消除
+        pygame.sprite.groupcollide(self.bullets,self.aliens,True,True)
+        # 判断是否消灭完毕
+        if not self.aliens:
+            self.bullets.empty()
+            self._create_fleet()
+            # self.settings.fleet_drop_speed += 4
+
+
+        
+    """创建外星群"""
     def _create_fleet(self):
         alien = Alien(self)
-        alien_width = alien.rect.width
+        alien_width,alien_height = alien.rect.size
         # 计算极限空间
         available_space_x = self.settings.screen_width - (2 * alien_width)
         # // 整除 只求商 不要余数 
         number_alines_x = available_space_x // (2 * alien_width)
 
-        for alien_number in range(number_alines_x):
-            alien = Alien(self)
-            alien.x = alien_width + 2 *alien_width *alien_number
-            alien.rect.x = alien.x
-            self.aliens.add(alien)
-
-
-
+        ship_height = self.ship.rect.height
+        available_space_y = self.settings.screen_height-(3*alien_height)-ship_height
+        number_rows = available_space_y // (2 * alien_height)
         
+        for row_number in range(number_rows):
+            for alien_number in range(number_alines_x):
+                self._create_alien(alien_number,row_number)
 
+    # 创建外星人
+    def _create_alien(self, alien_number, row_number):
+        alien = Alien(self)
+        alien_width,alien_height = alien.rect.size
+        alien.x = alien_width + 2 *alien_width *alien_number
+        alien.rect.x = alien.x
+        alien.rect.y = alien_height + 2*alien_height  * row_number
+        self.aliens.add(alien)
 
-
-
-            
-
+    def _update_aliens(self):
+        self._check_fleet_edges()
+        self.aliens.update()
+        if pygame.sprite.spritecollideany(self.ship,self.aliens):
+            # print('你挂了')
+            self._ship_hit()
+        self._check_aliens_bottom()
     
+    # 阵亡情况
+    def _ship_hit(self):
+        # 命减一
+        if self.game_stats.ship_left > 0:
+            self.game_stats.ship_left -= 1
+            # 清空屏幕
+            self.aliens.empty()
+            self.bullets.empty()
+            # 重置资源
+            self._create_fleet()
+            self.ship.center_ship()
+            # 延迟等待
+            sleep(0.7)
+        else:
+            self.game_stats.game_active = False
+
+    # 检查外星舰队是否抵达底部
+    def _check_aliens_bottom(self):
+        screen_rect = self.screen.get_rect()
+        for alien in self.aliens.sprites():
+            if alien.rect.bottom >= screen_rect.bottom:
+                self._ship_hit()
+                break
+
+    # 修改舰队方向
+    def _change_fleet_direction(self):
+        # 将整群外星人下移，改变移动方向
+        for alien in self.aliens.sprites():
+            alien.rect.y += self.settings.fleet_drop_speed
+        self.settings.fleet_direction *= -1  
+
+    # 检查舰队边缘
+    def _check_fleet_edges(self):
+        for alien in self.aliens.sprites():
+            if alien.check_edges():
+                self._change_fleet_direction()
+                break
+                
+
 
 
 if __name__ == '__main__':
