@@ -9,6 +9,7 @@ from bullet import Bullet
 from alien import Alien
 from game_stats import GameStats
 from button import Button
+from scoreboard import ScoreBoard
 
 class AlienInvasion:
     """管理游戏资源和行为的类"""
@@ -24,6 +25,9 @@ class AlienInvasion:
         self.aliens = pygame.sprite.Group()
         self._create_fleet()
         self.play_button = Button(self,'Play')
+        self.sb = ScoreBoard(self)
+
+
         pygame.display.set_caption("Alien Invasion")
 
         """设置背景颜色"""
@@ -57,11 +61,39 @@ class AlienInvasion:
                 self._check_keydown_events(event)
             elif event.type == pygame.KEYUP:
                 self._check_keyup_events(event)
+            elif event.type == pygame.MOUSEBUTTONDOWN:
+                mouse_pos = pygame.mouse.get_pos()
+                self._check_play_button(mouse_pos)
+
 
 
             # 随着动作进行背景变化
             # elif event.type:
             #     self.bg_color = (randint(0,255),randint(0,255),randint(0,255))
+
+    # 检查是否点击游戏开始按钮
+    def _check_play_button(self,mouse_pos):
+        # self.game_stats.game_active == False 太low
+        if not self.game_stats.game_active and self.play_button.rect.collidepoint(mouse_pos):
+            # 重置设置信息
+            self.settings.initialize_dynamic_settings()
+            # 重置游戏统计信息。
+            self.game_stats.reset_stats()
+            self.game_stats.game_active = True
+            self.sb.prep_score()
+            self.sb.prep_level()
+            self.sb.prep_ships()
+
+            # 清空余下的外星人和子弹。
+            self.aliens.empty()
+            self.bullets.empty()
+            # 创建一群新的外星人并让飞船居中
+            self._create_fleet()
+            self.ship.center_ship()
+            # 隐藏鼠标
+            pygame.mouse.set_visible(False)
+
+
 
     """KeyDown 事件"""
     def _check_keydown_events(self,event):
@@ -96,7 +128,7 @@ class AlienInvasion:
         self.aliens.draw(self.screen)
         if not self.game_stats.game_active:
             self.play_button.draw_button()
-
+        self.sb.show_score()
         pygame.display.flip()
 
     """发射子弹"""
@@ -115,14 +147,26 @@ class AlienInvasion:
 
         self._check_bullet_alien_collisions()
 
-
+    # 消灭外星人
     def _check_bullet_alien_collisions(self):
                 # 检查两个集合中是否有重复 有就消除
-        pygame.sprite.groupcollide(self.bullets,self.aliens,True,True)
+        collisions = pygame.sprite.groupcollide(self.bullets,self.aliens,True,True)
+        
+        if collisions:
+            for aliens in collisions.values():
+                self.game_stats.score += self.settings.alien_points * len(aliens)
+            self.sb.prep_score()
+            self.sb.check_high_score()
+
+
         # 判断是否消灭完毕
         if not self.aliens:
             self.bullets.empty()
             self._create_fleet()
+            self.settings.increase_speed()
+
+            self.game_stats.level += 1
+            self.sb.prep_level()
             # self.settings.fleet_drop_speed += 4
 
 
@@ -166,6 +210,7 @@ class AlienInvasion:
         # 命减一
         if self.game_stats.ship_left > 0:
             self.game_stats.ship_left -= 1
+            self.sb.prep_ships()
             # 清空屏幕
             self.aliens.empty()
             self.bullets.empty()
@@ -176,6 +221,7 @@ class AlienInvasion:
             sleep(0.7)
         else:
             self.game_stats.game_active = False
+            pygame.mouse.set_visible(True)
 
     # 检查外星舰队是否抵达底部
     def _check_aliens_bottom(self):
@@ -197,7 +243,7 @@ class AlienInvasion:
         for alien in self.aliens.sprites():
             if alien.check_edges():
                 self._change_fleet_direction()
-                break
+                break   
                 
 
 
@@ -205,7 +251,6 @@ class AlienInvasion:
 if __name__ == '__main__':
     ai = AlienInvasion()
     ai.run_game()
-
 
 
 
